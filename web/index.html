@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <title>Panel</title>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+    <style>
+        .block {
+            width: 500px;
+            background-color: #ccc;
+            border-radius: 10px;
+            margin: 10px auto;
+            padding: 10px;
+        }
+
+        .row {
+            margin: 5px;
+        }
+
+        .label {
+            display: inline-block;
+            width: 100px;
+            text-align: right;
+            padding-right: 5px;
+        }
+
+        h5 {
+            margin: 0;
+        }
+
+        #status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: #d45;
+            border-radius: 5px;
+        }
+    </style>
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+</head>
+<body>
+    <div class="block">
+        <h5>Links</h5>
+        <a href="./game.html" target="_blank">game</a>
+    </div>
+
+    <div class="block">
+        <h5>Status <div id="status"></div></h5>
+        <div class="row">
+            <span class="label">Rooms:</span>
+            <span id="rooms">0</span></div>
+        <div class="row">
+            <span class="label">Users:</span>
+            <span id="users">0</span></div>
+        <div class="row">
+            <span class="label">Total:</span>
+            <span id="total">0</span>
+        </div>
+    </div>
+
+    <div class="block">
+        <h5>Rooms</h5>
+        <ul id="room-list">
+
+        </ul>
+        <button id="test">Test</button>
+    </div>
+
+    <div class="block">
+        <div class="row" id="mem-alloc"></div>
+        <div class="row" id="mem-total"></div>
+        <div class="row" id="mem-sys"></div>
+        <div class="row" id="mem-gc"></div>
+    </div>
+
+    <script>
+        function markOnline() {
+            $("#status").css("background-color", "green")
+        }
+
+        function markOffline() {
+            $("#status").css("background-color", "#d45")
+        }
+
+        function updateStats(data) {
+            $("#rooms").text(data.rooms)
+            $("#users").text(data.users)
+            $("#total").text(data.total)
+            if(data.rooms > 0) {
+                if (data.room_names) {
+                    $("#room-list").html("")
+                    for(name of data.room_names) {
+                        let li = $("<li>" + name + "</li>")
+                        $("#room-list").append(li)
+                    }
+                }
+            }
+        }
+
+        function updateMem(data){
+            $("#mem-alloc").text(data.alloc)
+            $("#mem-total").text(data.total_alloc)
+            $("#mem-sys").text(data.sys)
+            $("#mem-gc").text(data.num_gc)
+        }
+
+        $(document).ready(() => {
+            const manager = new io.Manager()
+            let statsSocket = manager.socket("/stats", {
+                token:"my token"
+            })
+
+            statsSocket.on("connect", () => {
+                markOnline()
+            })
+
+            statsSocket.on("disconnect", (data) => {
+                markOffline()
+            })
+
+            statsSocket.on("update", (data) => {
+                updateStats(data)
+            })
+
+            statsSocket.on("memory", (data) => {
+                updateMem(data)
+            })
+        })
+    </script>
+</body>
+</html>
