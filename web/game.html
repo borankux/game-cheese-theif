@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
+    <title>Game</title>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+
+</head>
+<body>
+<script>
+    $(document).ready(function () {
+        const manager = new io.Manager()
+        const game = manager.socket("/game", {
+            token:"my token"
+        })
+
+        game.on("connect", function () {
+            console.log("game connected");
+        })
+
+        game.on("disconnect", function () {
+            console.log("game disconnected");
+        })
+    })
+</script>
+</body>
+</html>

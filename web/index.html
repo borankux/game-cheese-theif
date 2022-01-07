@@ -1,40 +1,122 @@
 <!doctype html>
 <html lang="en">
 <head>
-    <title>Chat Room</title>
+    <title>Panel</title>
+    <script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+    <script src="https://code.jquery.com/jquery-1.11.1.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font: 13px Helvetica, Arial; }
-        form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
-        form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
-        form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
-        #messages { list-style-type: none; margin: 0; padding: 0; }
-        #messages li { padding: 5px 10px; }
-        #messages li:nth-child(odd) { background: #eee; }
+        .block {
+            width: 500px;
+            background-color: #ccc;
+            border-radius: 10px;
+            margin: 10px auto;
+            padding: 10px;
+        }
+
+        .row {
+            margin: 5px;
+        }
+
+        .label {
+            display: inline-block;
+            width: 100px;
+            text-align: right;
+            padding-right: 5px;
+        }
+
+        h5 {
+            margin: 0;
+        }
+
+        #status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            background-color: #d45;
+            border-radius: 5px;
+        }
     </style>
+    <link rel="shortcut icon" type="image/x-icon" href="./favicon.ico" />
 </head>
 <body>
-<ul id="messages"></ul>
-<form action="">
-    <input id="m" autocomplete="off" />
-    <button>Send</button>
-</form>
-<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
-<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
-<script>
-    let token = localStorage.getItem("token");
-    const socket = io("/?token=token");
-    socket.on('broadcast', function(msg){
-        $('#messages').append($('<li>').text(msg));
-    });
+    <div class="block">
+        <h5>Links</h5>
+        <a href="./game.html" target="_blank">game</a>
+    </div>
 
-    $('form').submit(function(){
-        socket.emit('msg', $('#m').val(), function(data){
-            $('#messages').append($('<li>').text('you said:' + data));
-        });
-        $('#m').val('');
-        return false;
-    });
-</script>
+    <div class="block">
+        <h5>Status <div id="status"></div></h5>
+        <div class="row">
+            <span class="label">Rooms:</span>
+            <span id="rooms">0</span></div>
+        <div class="row">
+            <span class="label">Users:</span>
+            <span id="users">0</span></div>
+        <div class="row">
+            <span class="label">Total:</span>
+            <span id="total">0</span>
+        </div>
+    </div>
+
+    <div class="block">
+        <h5>Rooms</h5>
+        <ul id="room-list">
+
+        </ul>
+        <button id="test">Test</button>
+    </div>
+
+    <div class="block">
+        <div class="row" id="mem-alloc"></div>
+        <div class="row" id="mem-total"></div>
+        <div class="row" id="mem-sys"></div>
+        <div class="row" id="mem-gc"></div>
+    </div>
+
+    <script>
+        function markOnline() {
+            $("#status").css("background-color", "green")
+        }
+
+        function markOffline() {
+            $("#status").css("background-color", "#d45")
+        }
+
+        function updateStats(data) {
+            $("#rooms").text(data.rooms)
+            $("#users").text(data.users)
+            $("#total").text(data.total)
+        }
+
+        function updateMem(data){
+            $("#mem-alloc").text(data.alloc)
+            $("#mem-total").text(data.total_alloc)
+            $("#mem-sys").text(data.sys)
+            $("#mem-gc").text(data.num_gc)
+        }
+
+        $(document).ready(() => {
+            const manager = new io.Manager()
+            let statsSocket = manager.socket("/stats", {
+                token:"my token"
+            })
+
+            statsSocket.on("connect", () => {
+                markOnline()
+            })
+
+            statsSocket.on("disconnect", (data) => {
+                markOffline()
+            })
+
+            statsSocket.on("update", (data) => {
+                updateStats(data)
+            })
+
+            statsSocket.on("memory", (data) => {
+                updateMem(data)
+            })
+        })
+    </script>
 </body>
 </html>
