@@ -38,16 +38,10 @@ func haveUser(token string) bool {
 }
 
 func updateInfo(server *socketio.Server) {
-	var rooms []string
-	tokenMap.Range(func(key, value interface{}) bool {
-		fmt.Println(key, value)
-		rooms = append(rooms, key.(string))
-		return true
-	})
-
+	var rooms = server.Rooms("/game")
 	server.BroadcastToNamespace("/stats", "update", Stat{
-		Rooms:     len(server.Rooms("/game")),
-		Users:     len(rooms),
+		Rooms:     len(rooms),
+		Users:     len(getTokensFromMap()),
 		Total:     server.Count(),
 		RoomNames: rooms,
 	})
@@ -81,22 +75,45 @@ func main() {
 		color.Green("root:client connected: %s\n", conn.ID())
 		return nil
 	})
+
 	server.OnDisconnect("/", func(conn socketio.Conn, s string) {
+		defer func() {
+			conn.Close()
+		}()
 		color.Red("disconnected:%s\n%s\n", conn.ID(), s)
 	})
 
 	server.OnConnect("/stats", func(conn socketio.Conn) error {
 		updateInfo(server)
+		conn.LeaveAll()
+		server.JoinRoom("/stats", "manager", conn)
 		fmt.Printf("/stats:client connected: %s\n", conn.ID())
 		return nil
 	})
 
 	server.OnDisconnect("/stats", func(conn socketio.Conn, s string) {
+		defer func() {
+			conn.Close()
+		}()
 		fmt.Printf("/stats:client disconnected:%s\n", conn.ID())
 	})
 
 	server.OnConnect("/game", func(conn socketio.Conn) error {
-		updateInfo(server)
+		defer updateInfo(server)
+		url := conn.URL()
+		token := url.Query().Get("token")
+		if token == "null" {
+			token = id.GenerateToken()
+		}
+
+		if !haveUser(token) {
+			tokenMap.Store(token, "")
+		}
+
+		conn.LeaveAll()
+		server.JoinRoom("/game", "default-room", conn)
+		conn.Emit("auth", token)
+		color.Cyan("token:%s, length:%d", token, len(token))
 		color.Green("/game: connected:%s", conn.ID())
 		return nil
 	})
@@ -109,8 +126,14 @@ func main() {
 	}()
 
 	server.OnDisconnect("/game", func(conn socketio.Conn, s string) {
+		defer func() {
+			conn.Close()
+		}()
+
 		updateInfo(server)
-		color.Red("/game:disconnected:%s", conn.ID())
+		url := conn.URL()
+		token := url.Query().Get("token")
+		color.Red("/game:disconnected:%s, token:%s", conn.ID(), token)
 	})
 
 	go func() {
@@ -120,8 +143,22 @@ func main() {
 	}()
 
 	router := gin.New()
-	router.GET("socket.io/*any", gin.WrapH(server))
-	router.POST("socket.io/*any", gin.WrapH(server))
+	router.GET("socket.io/*any", Cors(), gin.WrapH(server))
+	router.POST("socket.io/*any", Cors(), gin.WrapH(server))
 	router.StaticFS("/web", http.Dir("./web"))
+	router.GET("/tokens", func(context *gin.Context) {
+		context.JSON(http.StatusOK, getTokensFromMap())
+	})
+
 	router.Run(":8000")
+}
+
+func getTokensFromMap() map[string]interface{} {
+	tokenList := make(map[string]interface{})
+	tokenMap.Range(func(key, value interface{}) bool {
+		tokenList[key.(string)] = value
+		return true
+	})
+
+	return tokenList
 }
