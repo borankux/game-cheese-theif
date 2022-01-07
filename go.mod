@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/gin-gonic/gin v1.7.7
 	github.com/googollee/go-socket.io v1.6.1
+	github.com/goombaio/namegenerator v0.0.0-20181006234301-989e774b106e
 )
 
 require (

@@ -1,60 +1,62 @@
 package main
 
 import (
+	"cheese-theif/id"
+	"fmt"
 	"github.com/gin-gonic/gin"
-	socket "github.com/googollee/go-socket.io"
+	socketio "github.com/googollee/go-socket.io"
+	"github.com/googollee/go-socket.io/engineio"
 	"log"
 	"net/http"
+	"sync"
 )
 
+var tokenMap = sync.Map{}
+
+func haveUser(token string) bool {
+	if _, ok := tokenMap.Load(token); ok {
+		return true
+	}
+	return false
+}
+
+
 func main() {
-	router := gin.New()
+	serverOptions := engineio.Options{
+		SessionIDGenerator: id.NewNameGenerator(),
+	}
 
-
-	server := socket.NewServer(nil)
-	server.OnConnect("/", func(s socket.Conn) error {
-		s.SetContext("")
-		log.Println("connected:", s.ID())
+	server := socketio.NewServer(&serverOptions)
+	server.OnConnect("/", func(conn socketio.Conn) error {
+		url := conn.URL()
+		token := url.Query().Get("token")
+		if !haveUser(token) {
+			conn.Emit("/token")
+		}
+		userID := conn.ID()
+		fmt.Printf("connected:%s\n", userID)
 		return nil
 	})
 
-
-	server.OnEvent("/", "notice", func(s socket.Conn, msg string) {
-		log.Println("notice:", msg)
-		s.Emit("reply", "have "+msg)
+	server.OnDisconnect("/", func(conn socketio.Conn, reason string) {
+		userID := conn.ID()
+		fmt.Printf("disconnected:%s, reason:%s\n", userID, reason)
 	})
 
-	server.OnEvent("/chat", "msg", func(s socket.Conn, msg string) string {
-		s.SetContext(msg)
-		return "recv " + msg
-	})
-
-	server.OnEvent("/", "bye", func(s socket.Conn) string {
-		last := s.Context().(string)
-		s.Emit("bye", last)
-		s.Close()
-		return last
-	})
-
-	server.OnError("/", func(s socket.Conn, e error) {
-		log.Println("meet error:", e)
-	})
-
-	server.OnDisconnect("/", func(s socket.Conn, reason string) {
-		log.Println("closed", reason)
+	server.OnEvent("/", "msg", func(s socketio.Conn, msg string) {
+		fmt.Printf("%s, %s\n", msg, s.ID())
+		server.BroadcastToNamespace("/", "broadcast", fmt.Sprintf("%s says:%s", s.ID(), msg))
 	})
 
 	go func() {
 		if err := server.Serve(); err != nil {
-			log.Fatalf("socket listen error: %s\n", err)
+			log.Fatalf("socket listen error:%s\n", err)
 		}
 	}()
-	defer server.Close()
 
-	router.GET("/socket.io/*any", gin.WrapH(server))
-	router.POST("/socket.io/*any", gin.WrapH(server))
-	router.StaticFS("/public", http.Dir("./public"))
-	if err := router.Run(":8000"); err != nil {
-		log.Fatal("failed run app: ", err)
-	}
+	router := gin.New()
+	router.GET("socket.io/*any", gin.WrapH(server))
+	router.POST("socket.io/*any", gin.WrapH(server))
+	router.StaticFS("/web", http.Dir("./web"))
+	router.Run(":8000")
 }
